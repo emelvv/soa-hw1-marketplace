@@ -1,0 +1,86 @@
+' Общая модель для трёх видов C4 Container.
+' $view: overview — интерфейс и данные; calls — межсервисные вызовы;
+' events — сообщения RabbitMQ. Повторяющиеся блоки — те же контейнеры.
+!pragma layout elk
+!$DEFAULT_WRAP_WIDTH = 220
+!$BOUNDARY_COLOR = "#475569"
+!$BOUNDARY_BORDER_STYLE = "solid"
+!$ARROW_COLOR = "#64748B"
+!$ARROW_FONT_COLOR = "#334155"
+!$CONTAINER_BG_COLOR = "#356EA5"
+!$CONTAINER_BORDER_COLOR = "#2B5C8C"
+!include <C4/C4_Container>
+
+LAYOUT_TOP_DOWN()
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName SansSerif
+skinparam titleFontColor #16324F
+skinparam titleFontSize 22
+skinparam nodesep 80
+skinparam ranksep 100
+skinparam shadowing false
+skinparam legendFontColor #334155
+skinparam legendBackgroundColor #F8FAFC
+skinparam legendBorderColor #E2E8F0
+skinparam legendFontSize 12
+skinparam padding 8
+
+AddElementTag("database", $bgColor="#EAF2FA", $fontColor="#16324F", $borderColor="#8BAFD0")
+AddElementTag("broker", $bgColor="#FFF1D9", $fontColor="#714800", $borderColor="#D7A64A")
+AddRelTag("async", $lineColor="#B06A00", $textColor="#875100", $lineStyle=DashedLine())
+
+!if ($view == "overview")
+Person(buyer, "Покупатель", "Выбирает товары, оформляет\nи оплачивает заказы")
+Person(seller, "Продавец", "Управляет своими товарами\nи выполнением заказов")
+!endif
+
+System_Boundary(marketplace, "Маркетплейс") {
+    !if ($view != "events")
+    Container(web, "Web Application", "TypeScript, React / Browser SPA", "Интерфейс покупателя\nи продавца")
+    Container(users, "User Service", "Python, FastAPI", "Профили, аутентификация,\nроли и контакты")
+    !endif
+    !if ($view != "calls")
+    Container(feed, "Feed Service", "Python, FastAPI", "Интересующие категории\nи персональная лента")
+    !endif
+    Container(catalog, "Catalog Service", "Python, FastAPI", "Товары, категории, цены\nи доступность")
+    Container(orders, "Order Service", "Python, FastAPI", "Состав, сумма\nи состояние заказа")
+    Container(payments, "Payment Service", "Python, FastAPI", "Попытки оплаты, комиссия\nи учёт платежей")
+    Container(notifications, "Notification Service", "Python, FastAPI", "Письма о статусах заказов\nи повторные отправки")
+
+    !if ($view == "events")
+    ContainerQueue(bus, "Event Broker", "RabbitMQ", "Доставка событий; отдельные\nочереди подписчиков", $tags="broker")
+    !endif
+
+    !if ($view == "overview")
+    ContainerDb(users_db, "Users DB", "PostgreSQL", "Профили, роли, email,\nхеши паролей", $tags="database")
+    ContainerDb(feed_db, "Feed DB", "PostgreSQL", "Интересы пользователя,\nпроекция товаров", $tags="database")
+    ContainerDb(catalog_db, "Catalog DB", "PostgreSQL", "Товары, категории, продавцы,\nцены и доступность", $tags="database")
+    ContainerDb(orders_db, "Orders DB", "PostgreSQL", "Заказы, снимки позиций,\nсуммы, история статусов", $tags="database")
+    ContainerDb(payments_db, "Payments DB", "PostgreSQL", "Платёжные попытки, комиссии,\nстатусы, ключи идемпотентности", $tags="database")
+    ContainerDb(notifications_db, "Notifications DB", "PostgreSQL", "Шаблоны, задания,\nполучатели, попытки доставки", $tags="database")
+    !endif
+}
+
+!if ($view == "calls")
+System_Ext(psp, "Платёжный провайдер", "Принимает оплату, хранит\nплатёжные реквизиты")
+System_Ext(email, "Email-провайдер", "Доставляет письма покупателям")
+!endif
+
+!procedure ViewLegend()
+legend bottom left
+|= Обозначения |
+!if ($view == "overview")
+| Синие блоки — приложения; тёмно-синие — пользователи. |
+| Голубые цилиндры — отдельные базы сервисов. |
+| Сплошная стрелка — запрос / действие; ответ подразумевается. |
+!elseif ($view == "calls")
+| Синие блоки — приложения; серые — внешние системы. |
+| Сплошная стрелка — запрос; ответ подразумевается. |
+| Оранжевый пунктир — асинхронный webhook. |
+!else
+| Синие блоки — приложения; оранжевый — брокер RabbitMQ. |
+| Пунктирная стрелка — асинхронная передача данных. |
+!endif
+| Рамка — граница маркетплейса. |
+endlegend
+!endprocedure

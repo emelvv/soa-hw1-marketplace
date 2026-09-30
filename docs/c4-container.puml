@@ -1,0 +1,62 @@
+' Один источник создаёт три изображения одной архитектуры.
+' Все контейнеры и общие стили определены в c4-model.iuml.
+
+@startuml c4-container
+!$view = "overview"
+!include c4-model.iuml
+title Маркетплейс · C4 Container\n01 / Интерфейс, сервисы и владение данными
+
+Rel(buyer, web, "Покупки, профиль, интересы", "Браузер")
+Rel(seller, web, "Товары и выполнение заказов", "Браузер")
+Rel(web, users, "Вход, профиль", "HTTPS / JSON")
+Rel(web, feed, "Интересы, лента", "HTTPS / JSON")
+Rel(web, catalog, "Карточки,\nуправление товарами", "HTTPS / JSON")
+Rel(web, orders, "Создание и статусы\nзаказов", "HTTPS / JSON")
+Rel(web, payments, "Начать оплату,\nузнать статус", "HTTPS / JSON")
+
+Rel(users, users_db, "Чтение / запись", "SQL / PostgreSQL")
+Rel(feed, feed_db, "Чтение / запись", "SQL / PostgreSQL")
+Rel(catalog, catalog_db, "Чтение / запись", "SQL / PostgreSQL")
+Rel(orders, orders_db, "Чтение / запись", "SQL / PostgreSQL")
+Rel(payments, payments_db, "Чтение / запись", "SQL / PostgreSQL")
+Rel(notifications, notifications_db, "Чтение / запись", "SQL / PostgreSQL")
+
+' Невидимая связь задаёт ряд; вызова Web -> Notification не существует.
+Lay_D(web, notifications)
+
+ViewLegend()
+caption Межсервисные вызовы и внешние системы — вид 02. Брокер и события — вид 03.
+@enduml
+
+@startuml c4-calls
+!$view = "calls"
+!include c4-model.iuml
+title Маркетплейс · C4 Container\n02 / Межсервисные вызовы и внешние системы
+
+Rel(orders, catalog, "Актуальные цены\nи доступность", "HTTPS / JSON")
+Rel(payments, orders, "Владелец, позиции,\nсумма и статус", "HTTPS / JSON")
+Rel(notifications, users, "Email покупателя", "HTTPS / JSON")
+Rel(payments, psp, "Создать платёж,\nпроверить статус", "HTTPS / API")
+Rel(psp, payments, "Результат оплаты", "HTTPS / webhook", $tags="async")
+Rel(web, psp, "Переход на\nстраницу оплаты", "HTTPS")
+Rel(notifications, email, "Передать письмо\nдля доставки", "HTTPS / API")
+
+ViewLegend()
+caption Показаны дополнительные связи между контейнерами. Пользовательские API и базы — вид 01.
+@enduml
+
+@startuml c4-events
+!$view = "events"
+!include c4-model.iuml
+title Маркетплейс · C4 Container\n03 / Асинхронный обмен событиями
+
+Rel(catalog, bus, "ProductChanged\nProductDeleted", "AMQP", $tags="async")
+Rel(bus, feed, "ProductChanged\nProductDeleted", "AMQP", $tags="async")
+Rel(payments, bus, "PaymentSucceeded\nPaymentFailed", "AMQP", $tags="async")
+Rel(bus, orders, "PaymentSucceeded\nPaymentFailed", "AMQP", $tags="async")
+Rel(orders, bus, "OrderStatusChanged", "AMQP", $tags="async")
+Rel(bus, notifications, "OrderStatusChanged", "AMQP", $tags="async")
+
+ViewLegend()
+caption Стрелки показывают движение событий: издатель → RabbitMQ → подписчик. Базы данных — вид 01.
+@enduml
